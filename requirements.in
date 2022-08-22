@@ -1,0 +1,12 @@
+# core functionalities
+pyqt5==5.15.7
+configobj==5.0.6
+mutagen==1.45.1
+pyparsing==3.0.9
+
+# extra / tag sources
+lxml==4.9.1
+pyacoustid
+audioread
+Levenshtein
+chromaprint
