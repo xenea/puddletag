@@ -1,6 +1,6 @@
 from copy import deepcopy
 
-from mutagen.apev2 import APEv2File, APEValue, BINARY, APENoHeaderError
+from mutagen.apev2 import APEv2File, APEValue, BINARY, APENoHeaderError, TEXT
 from mutagen.monkeysaudio import MonkeysAudio, MonkeysAudioHeaderError
 from mutagen.musepack import Musepack, MusepackHeaderError
 from mutagen.wavpack import WavPack, WavPackHeaderError
@@ -22,7 +22,7 @@ class DefaultHeaderError(RuntimeError): pass
 
 def bin_to_pic(value, covertype=3):
     ret = {}
-    start = value.find('\x00')
+    start = value.find(b'\x00')
     ret[util.DESCRIPTION] = value[:start].decode('utf8', 'replace')
 
     ret[util.DATA] = value[start + 1:]
@@ -41,7 +41,7 @@ def pic_to_bin(pic):
     key = 'Cover Art (Back)' if covertype == 4 else 'Cover Art (Front)'
 
     if data:
-        return {key: APEValue(''.join((desc, '\x00', data)), BINARY)}
+        return {key: APEValue(b''.join((desc, b'\x00', data)), BINARY)}
     return {}
 
 
@@ -61,25 +61,25 @@ def get_class(mutagen_file, filetype, attrib_fields, header_error=None):
 
             MockTag.__init__(self, filename)
 
-        def get_filepath(self):
+        @property
+        def filepath(self):
             return MockTag.get_filepath(self)
 
-        def set_filepath(self, val):
+        @filepath.setter
+        def filepath(self, val):
             self.__tags.update(MockTag.set_filepath(self, val))
 
-        filepath = property(get_filepath, set_filepath)
-
-        def _get_images(self):
+        @property
+        def images(self):
             return self.__images
 
-        def _set_images(self, images):
+        @images.setter
+        def images(self, images):
             if images:
                 self.__images = [parse_image(i, self.IMAGETAGS) for i in images]
             else:
                 self.__images = []
             cover_info(images, self.__tags)
-
-        images = property(_get_images, _set_images)
 
         def __contains__(self, key):
             if key == '__image':
@@ -150,7 +150,8 @@ def get_class(mutagen_file, filetype, attrib_fields, header_error=None):
                 del (self.__tags[self.revmapping.get(key, key)])
             self.images = []
 
-        def _info(self):
+        @property
+        def info(self):
             info = self.mut_obj.info
             fileinfo = [('Path', self[PATH]),
                         ('Size', str_filesize(int(self.size))),
@@ -166,8 +167,6 @@ def get_class(mutagen_file, filetype, attrib_fields, header_error=None):
                 except AttributeError:
                     continue
             return [('File', fileinfo), ("%s Info" % self.filetype, apeinfo)]
-
-        info = property(_info)
 
         @keys_deco
         def keys(self):
@@ -231,7 +230,7 @@ def get_class(mutagen_file, filetype, attrib_fields, header_error=None):
                 except AttributeError:
                     pass
             toremove = [z for z in audio if z
-                        not in newtag and audio[z].kind == 0]
+                        not in newtag and audio[z].kind in (TEXT, BINARY)]
             for z in toremove:
                 del (audio[z])
             audio.tags.update(newtag)
@@ -262,7 +261,8 @@ mp_base = get_class(Musepack, 'Musepack',
 
 
 class MusePackTag(mp_base):
-    def _info(self):
+    @property
+    def info(self):
         info = self.mut_obj.info
         fileinfo = [('Path', self[PATH]),
                     ('Size', str_filesize(int(self.size))),
@@ -275,8 +275,6 @@ class MusePackTag(mp_base):
                   ('Stream Version', str(info.version))]
         return [('File', fileinfo), ("Musepack Info", mpinfo)]
 
-    info = property(_info)
-
 
 ma_base = get_class(MonkeysAudio, "Monkey's Audio",
                     ATTRIBUTES + ['bitrate', 'frequency', 'version', 'channels'],
@@ -284,7 +282,8 @@ ma_base = get_class(MonkeysAudio, "Monkey's Audio",
 
 
 class MonkeysAudioTag(ma_base):
-    def _info(self):
+    @property
+    def info(self):
         info = self.mut_obj.info
         fileinfo = [('Path', self[PATH]),
                     ('Size', str_filesize(int(self.size))),
@@ -297,15 +296,14 @@ class MonkeysAudioTag(ma_base):
                   ('Stream Version', str(info.version))]
         return [('File', fileinfo), ("Monkey's Audio", mainfo)]
 
-    info = property(_info)
-
 
 wv_base = get_class(WavPack, 'WavPack',
                     ATTRIBUTES + ['frequency', 'bitrate'], WavPackHeaderError)
 
 
 class WavPackTag(wv_base):
-    def _info(self):
+    @property
+    def info(self):
         info = self.mut_obj.info
         fileinfo = [('Path', self[PATH]),
                     ('Size', str_filesize(int(self.size))),
@@ -316,8 +314,6 @@ class WavPackTag(wv_base):
                   ('Length', self.length),
                   ('Bitrate', 'Lossless')]
         return [('File', fileinfo), ("WavPack Info", wpinfo)]
-
-    info = property(_info)
 
 
 Tag = get_class(APEv2File, 'APEv2', ATTRIBUTES)

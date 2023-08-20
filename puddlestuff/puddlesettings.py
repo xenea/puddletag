@@ -65,28 +65,30 @@ def update_settings():
 
 
 class SettingsCheckBox(QCheckBox):
+
     def __init__(self, default=None, text=None, parent=None):
         QCheckBox.__init__(self, translate("GenSettings", text), parent)
 
         self.settingValue = default
         self._text = text
 
-    def _value(self):
+    @property
+    def settingValue(self):
         if self.checkState() == Qt.CheckState.Checked:
             return self._text, True
         else:
             return self._text, False
 
-    def _setValue(self, value):
+    @settingValue.setter
+    def settingValue(self, value):
         if value:
             self.setCheckState(Qt.CheckState.Checked)
         else:
             self.setCheckState(Qt.CheckState.Unchecked)
 
-    settingValue = property(_value, _setValue)
-
 
 class SettingsLineEdit(QWidget):
+
     def __init__(self, desc, default, parent=None):
         QWidget.__init__(self, parent)
         vbox = QVBoxLayout()
@@ -99,16 +101,17 @@ class SettingsLineEdit(QWidget):
         vbox.addWidget(self._text)
         self.setLayout(vbox)
 
-    def _value(self):
+    @property
+    def settingValue(self):
         return self._desc, str(self._text.text())
 
-    def _setValue(self, value):
+    @settingValue.setter
+    def settingValue(self, value):
         self._text.setText(self._desc, value)
-
-    settingValue = property(_value, _setValue)
 
 
 class GeneralSettings(QWidget):
+
     def __init__(self, controls, parent=None):
         QWidget.__init__(self, parent)
         settings = []
@@ -168,7 +171,7 @@ class GeneralSettings(QWidget):
                               ['__filename,track,__dirpath', 'track, album',
                                '__filename,album,__dirpath'])
 
-        from .webdb import SortOptionEditor
+        from .mainwin.tagsources import SortOptionEditor
         win = SortOptionEditor(options, self)
         win.options.connect(self.applySortOptions)
         win.show()
@@ -198,6 +201,7 @@ class GeneralSettings(QWidget):
 
 
 class Playlist(QWidget):
+
     def __init__(self, parent=None):
         QWidget.__init__(self, parent)
 
@@ -241,6 +245,7 @@ class Playlist(QWidget):
         self.setLayout(vbox)
 
     def applySettings(self, control=None):
+
         def checktoint(checkbox):
             if checkbox.checkState() == Qt.CheckState.Checked:
                 return 1
@@ -256,6 +261,7 @@ class Playlist(QWidget):
 
 
 class TagMappings(QWidget):
+
     def __init__(self, parent=None):
         filename = os.path.join(PuddleConfig().savedir, 'mappings')
         self._edited = deepcopy(audioinfo.mapping)
@@ -382,6 +388,7 @@ class TagMappings(QWidget):
 
 
 class Tags(QWidget):
+
     def __init__(self, parent=None, status=None):
         QWidget.__init__(self, parent)
         self._edited = False
@@ -473,6 +480,7 @@ class Tags(QWidget):
 
 
 class ListModel(QAbstractListModel):
+
     def __init__(self, options):
         QAbstractListModel.__init__(self)
         self.options = options
@@ -524,6 +532,7 @@ class SettingsList(QListView):
 
 
 class StatusWidgetItem(QTableWidgetItem):
+
     def __init__(self, text, color):
         QTableWidgetItem.__init__(self, text)
         self.setBackground(QBrush(color))
@@ -531,6 +540,7 @@ class StatusWidgetItem(QTableWidgetItem):
 
 
 class ColorEdit(QWidget):
+
     def __init__(self, parent=None):
         QWidget.__init__(self, parent)
         cparser = PuddleConfig()

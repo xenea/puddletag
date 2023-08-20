@@ -1,11 +1,12 @@
 # core functionalities
-pyqt5==5.15.7
-configobj==5.0.6
-mutagen==1.45.1
-pyparsing==3.0.9
+pyqt5==5.15.9
+configobj==5.0.8
+mutagen==1.46.0
+pyparsing==3.1.1
+unidecode==1.3.6
 
 # extra / tag sources
-lxml==4.9.1
+lxml==4.9.3
 pyacoustid
 audioread
 Levenshtein

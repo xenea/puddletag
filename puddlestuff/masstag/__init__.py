@@ -5,12 +5,13 @@ from operator import itemgetter
 from ..audioinfo import FILENAME
 from ..constants import VARIOUS
 from ..findfunc import filenametotag
-from ..puddleobjects import natsort_case_key, ratio
+from ..puddleobjects import natural_sort_key, ratio
 from ..tagsources import RetrievalError
 from ..translations import translate
 from ..util import sorted_split_by_field, split_by_field, to_string
-from ..webdb import (strip as strip_fields, DEFAULT_REGEXP,
-                     apply_regexps)
+from ..mainwin.tagsources import (strip as strip_fields,
+                                  DEFAULT_REGEXP,
+                                  apply_regexps)
 
 
 def set_status(v):
@@ -103,6 +104,7 @@ NO_VALID_FOUND = translate("Masstagging",
 
 
 class MassTagFlag(object):
+
     def __init__(self):
         self.stop = False
         object.__init__(self)
@@ -111,11 +113,8 @@ class MassTagFlag(object):
 def brute_force_results(audios, retrieved):
     matched = {}
 
-    audios = sorted(audios, natsort_case_key,
-                    lambda f: to_string(f.get('track', f['__filename'])))
-
-    retrieved = sorted(retrieved, natsort_case_key,
-                       lambda t: to_string(t.get('track', t.get('title', ''))))
+    audios = sorted(audios, key=lambda f: natural_sort_key(to_string(f.get('track', f['__filename']))))
+    retrieved = sorted(retrieved, key=lambda t: natural_sort_key(to_string(t.get('track', t.get('title', '')))))
 
     for audio, result in zip(audios, retrieved):
         matched[audio] = result
@@ -245,7 +244,7 @@ def get_match_str(info):
         return MATCH_NO_INFO
 
 
-get_lower = lambda f, key, default='': to_string(f.get(key, default)).lower()
+get_lower = lambda f, key, default = '': to_string(f.get(key, default)).lower()
 
 
 def ratio_compare(d1, d2, key):
@@ -525,6 +524,7 @@ def replace_tracknumbers(files, tracks):
 
 
 def split_files(audios, pattern):
+
     def copy_audio(f):
         tags = filenametotag(pattern, f['__path'], True)
         audio_copy = deepcopy(f)
@@ -547,6 +547,7 @@ def to_int(v):
 
 
 class MassTagProfile(object):
+
     def __init__(self, name=DEFAULT_NAME, desc='', fields=None, files=None,
                  file_pattern=DEFAULT_PATTERN, profiles=None, album_bound=0.50,
                  track_bound=0.80, jfdi=True, leave_existing=False, regexps=''):
@@ -574,8 +575,8 @@ class MassTagProfile(object):
         profiles = self.profiles if profiles is None else profiles
         regexps = self.regexps if regexps is None else regexps
 
-        assert files
-        assert profiles
+        if not files or not profiles:
+            return
 
         self.files = files
 
@@ -614,6 +615,7 @@ class MassTagProfile(object):
 
 
 class Result(object):
+
     def __init__(self, info=None, tracks=None, tag_source=None):
         object.__init__(self)
 
@@ -626,27 +628,29 @@ class Result(object):
         self.info = {} if info is None else info
         self.track_matched = {}
 
-    def _get_info(self):
-        return self.__info
-
-    def _set_info(self, value):
-        self.__info = value
-
+    def _update_merged(self):
         if self.__tracks:
-            self.merged = [merge_track(a, value) for a in self.__tracks]
+            self.merged = [merge_track(a, self.__info) for a in self.__tracks]
         else:
             self.merged = []
 
-    info = property(_get_info, _set_info)
+    @property
+    def info(self):
+        return self.__info
 
-    def _get_tracks(self):
+    @info.setter
+    def info(self, value):
+        self.__info = value
+        self._update_merged()
+
+    @property
+    def tracks(self):
         return self.__tracks
 
-    def _set_tracks(self, value):
+    @tracks.setter
+    def tracks(self, value):
         self.__tracks = value
-        self._set_info(self.__info)
-
-    tracks = property(_get_tracks, _set_tracks)
+        self._update_merged()
 
     def retrieve(self, errors=None):
         if self.tag_source:
@@ -664,6 +668,7 @@ class Result(object):
 
 
 class TagSourceProfile(object):
+
     def __init__(self, files=None, tag_source=None, fields=None,
                  if_no_result=CONTINUE, replace_fields=None):
 

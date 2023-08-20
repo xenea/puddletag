@@ -2,8 +2,7 @@ import os
 import sys
 
 from PyQt5.QtCore import Qt, pyqtSignal
-from PyQt5.QtGui import QDoubleValidator, \
-    QIcon
+from PyQt5.QtGui import QDoubleValidator
 from PyQt5.QtWidgets import QAction, QApplication, QCheckBox, QComboBox, QDialog, QFrame, QHBoxLayout, \
     QInputDialog, QLabel, QLineEdit, QMessageBox, QToolButton, QTreeWidget, QTreeWidgetItem, QVBoxLayout, \
     QWidget
@@ -14,7 +13,7 @@ from ..constants import SAVEDIR, RIGHTDOCK
 from ..findfunc import tagtofilename
 from ..puddletag import add_shortcuts
 from ..puddleobjects import ListButtons, ListBox, OKCancel, PuddleConfig
-from ..puddleobjects import progress, winsettings
+from ..puddleobjects import get_icon, progress, winsettings
 
 title_sort = lambda a: a.get('title', '')
 dupe_sort = lambda a: a[0].get('title', '')
@@ -290,7 +289,7 @@ class SetDialog(QDialog):
         vbox.addWidget(setlabel)
 
         comboadd = QToolButton()
-        comboadd.setIcon(QIcon(':/filenew.png'))
+        comboadd.setIcon(get_icon('list-add'))
         comboadd.setToolTip('Add set')
         comboadd.clicked.connect(self.addSet)
 
@@ -368,7 +367,12 @@ class SetDialog(QDialog):
         self.setscombo.setCurrentIndex(0)
         self.setscombo.currentIndexChanged.connect(self.changeSet)
 
-    def _setCurrentSet(self, s):
+    @property
+    def currentSet(self):
+        return self._sets[self.setscombo.currentIndex()]
+
+    @currentSet.setter
+    def currentSet(self, s):
         [text.setText(disp) for text, disp in zip(self.texts, s[1])]
         self.listbox.clear()
         [self.listbox.addItem(alg.pprint()) for alg in s[2]]
@@ -378,11 +382,6 @@ class SetDialog(QDialog):
         else:
             self.maintag.addItem(s[3])
             self.maintag.setCurrentIndex(self.maintag.count() - 1)
-
-    def _getCurrentSet(self):
-        return self._sets[self.setscombo.currentIndex()]
-
-    currentSet = property(_getCurrentSet, _setCurrentSet)
 
     def changeSet(self, index):
         i = self._previndex

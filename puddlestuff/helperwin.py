@@ -17,7 +17,7 @@ from .constants import HOMEDIR, KEEP
 from .puddleobjects import (
     get_icon, gettaglist, partial,
     settaglist, winsettings, ListButtons, MoveButtons, OKCancel,
-    PicWidget, PuddleConfig, natsort_case_key)
+    PicWidget, PuddleConfig, natural_sort_key)
 from .translations import translate
 from .util import pprint_tag
 from .util import to_string
@@ -455,20 +455,22 @@ class StatusWidgetItem(QTableWidgetItem):
         self._original = (text, preview, status)
         self.linked = []
 
-    def _get_preview(self):
+    @property
+    def preview(self):
         return self.font().bold()
 
-    def _set_preview(self, value):
+    @preview.setter
+    def preview(self, value):
         font = self.font()
         font.setBold(value)
         self.setFont(font)
 
-    preview = property(_get_preview, _set_preview)
-
-    def _get_status(self):
+    @property
+    def status(self):
         return self._status
 
-    def _set_status(self, status):
+    @status.setter
+    def status(self, status):
         if status and status in self.statusColors:
             if self._status == ADD and status != REMOVE:
                 return
@@ -477,8 +479,6 @@ class StatusWidgetItem(QTableWidgetItem):
         else:
             self.setBackground(QTableWidgetItem().background())
             self._status = None
-
-    status = property(_get_status, _set_status)
 
     def __lt__(self, item):
         if self.text().upper() < item.text().upper():
@@ -518,7 +518,7 @@ class StatusWidgetCombo(QComboBox):
         self.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToContents)
 
         items = map(str, items)
-        items = sorted(items, key=natsort_case_key)
+        items = sorted(items, key=natural_sort_key)
         if len(items) > 1:
             items.append(r'\\'.join(items))
         self.addItem(KEEP)
@@ -534,22 +534,20 @@ class StatusWidgetCombo(QComboBox):
         self._original = (items, preview, status)
         self.linked = []
 
-    def _get_preview(self):
+    @property
+    def preview(self):
         return False
-        return self.font().bold()
 
-    def _set_preview(self, value):
+    @preview.setter
+    def preview(self, _):
         return
-        font = self.font()
-        font.setBold(value)
-        self.setFont(font)
 
-    preview = property(_get_preview, _set_preview)
-
-    def _get_status(self):
+    @property
+    def status(self):
         return self._status
 
-    def _set_status(self, status):
+    @status.setter
+    def status(self, status):
         if status and status in self.statusColors:
             if self._status == ADD and status != REMOVE:
                 return
@@ -559,14 +557,12 @@ class StatusWidgetCombo(QComboBox):
             self.setBackground(None)
             self._status = None
 
-    status = property(_get_status, _set_status)
-
     def setBackground(self, brush=None):
         if brush is None:
             color = QLineEdit().palette().color(QPalette.ColorRole.Base).name()
         else:
             color = brush.color().name()
-        self.setStyleSheet("QComboBox { background-color: %s; }" % color);
+        self.setStyleSheet("QComboBox { background-color: %s; }" % color)
 
     def background(self):
         brush = QBrush()
@@ -660,7 +656,7 @@ class ExTags(QDialog):
         self._reset = QToolButton()
         self._reset.setToolTip(translate('Extended Tags',
                                          'Resets the selected fields to their original value.'))
-        self._reset.setIcon(get_icon('edit-undo', ':/undo.png'))
+        self._reset.setIcon(get_icon('edit-undo'))
         self._reset.clicked.connect(self.resetFields)
 
         self.listbuttons = ListButtons()

@@ -1,4 +1,3 @@
-import imghdr
 from copy import deepcopy
 
 from mutagen.mp4 import MP4, MP4Cover
@@ -7,7 +6,7 @@ from . import tag_versions, util
 from .util import (usertags, isempty,
                    FILENAME, PATH,
                    getdeco, setdeco, FILETAGS, str_filesize, fn_hash, CaselessDict, keys_deco,
-                   del_deco, cover_info, info_to_dict, parse_image, get_total)
+                   del_deco, cover_info, info_to_dict, parse_image, get_total, get_mime)
 
 ATTRIBUTES = ('frequency', 'bitrate', 'length', 'accessed', 'size', 'created',
               'modified', 'bitspersample', 'channels')
@@ -171,10 +170,10 @@ def bin_to_pic(cover):
 
 def pic_to_bin(image):
     data = image[util.DATA]
-    mime = imghdr.what(None, data)
-    if mime == 'png':
+    mime = get_mime(data)
+    if mime == 'image/png':
         format = MP4Cover.FORMAT_PNG
-    elif mime == 'jpeg':
+    elif mime == 'image/jpeg':
         format = MP4Cover.FORMAT_JPEG
     else:
         return
@@ -195,13 +194,13 @@ class Tag(util.MockTag):
 
         util.MockTag.__init__(self, filename)
 
-    def get_filepath(self):
+    @property
+    def filepath(self):
         return util.MockTag.get_filepath(self)
 
-    def set_filepath(self, val):
+    @filepath.setter
+    def filepath(self, val):
         self.__tags.update(util.MockTag.set_filepath(self, val))
-
-    filepath = property(get_filepath, set_filepath)
 
     def __contains__(self, key):
         if key == '__image':
@@ -285,19 +284,20 @@ class Tag(util.MockTag):
             del (self.__tags[self.revmapping.get(key, key)])
         self.images = []
 
-    def _set_images(self, images):
+    @property
+    def images(self):
+        return self.__images
+
+    @images.setter
+    def images(self, images):
         if images:
             self.__images = [parse_image(i, self.IMAGETAGS) for i in images]
         else:
             self.__images = []
         cover_info(images, self.__tags)
 
-    def _get_images(self):
-        return self.__images
-
-    images = property(_get_images, _set_images)
-
-    def _info(self):
+    @property
+    def info(self):
         info = self.mut_obj.info
         fileinfo = [('Path', self[PATH]),
                     ('Size', str_filesize(int(self.size))),
@@ -311,8 +311,6 @@ class Tag(util.MockTag):
                    ('Bits per sample', str(info.bits_per_sample))]
 
         return [('File', fileinfo), ('MP4 Info', mp4info)]
-
-    info = property(_info)
 
     def link(self, filename):
         """Links the audio, filename
@@ -371,6 +369,7 @@ class Tag(util.MockTag):
                                 field_value.append(v)
                             else:
                                 field_value.append(str(v))
+                        tags[field] = field_value
                     except UnicodeDecodeError:
                         self.__errors.add(field)
 

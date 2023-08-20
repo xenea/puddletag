@@ -6,14 +6,13 @@ import urllib.parse
 from functools import partial
 
 from PyQt5.QtCore import QDir, QSettings, QUrl, pyqtRemoveInputHook, pyqtSignal
-from PyQt5.QtGui import QDesktopServices, QIcon
+from PyQt5.QtGui import QDesktopServices
 from PyQt5.QtWidgets import QAction, QApplication, QFileDialog, QFrame, QLabel, QMainWindow, QMenu, QMessageBox, QSplitter, QVBoxLayout, QWidget
 
 from . import loadshortcuts as ls
 from . import m3u, genres
 from . import mainwin
 from . import tagmodel
-from . import webdb
 from . import version_string, changeset
 from .mainwin import funcs as mainfuncs
 from .masstag import dialogs
@@ -70,7 +69,7 @@ def create_tool_windows(parent, extra=None):
     cparser.filename = ls.menu_path
     widgets = (mainwin.tagpanel, mainwin.artwork,
                mainwin.dirview, mainwin.patterncombo, mainwin.filterwin,
-               webdb, mainwin.storedtags, mainwin.logdialog,
+               mainwin.tagsources, mainwin.storedtags, mainwin.logdialog,
                dialogs)
 
     controls = [z.control for z in widgets]
@@ -314,7 +313,7 @@ def help_menu(parent):
     issue_link = QAction(translate("Menus", '&Report a problem'), parent)
     connect(issue_link, create_bug_report_issue)
 
-    about_icon = get_icon('help-about', QIcon())
+    about_icon = get_icon('help-about')
     about = QAction(about_icon,
                     translate("Menus", 'About puddletag'), parent)
     connect(about, partial(mainfuncs.show_about, parent))
@@ -353,11 +352,17 @@ class PreviewLabel(QLabel):
         self._enabled = not self._enabled
         self.valueChanged.emit(self._enabled)
 
+
 def _openFilesFilterFilename(filename):
     filename = os.path.abspath(filename)
     if isinstance(filename, str):
         filename = encode_fn(filename)
     return filename
+
+
+# set in MainWin.__init__
+add_shortcuts = None
+remove_shortcuts = None
 
 
 class MainWin(QMainWindow):
@@ -632,7 +637,7 @@ class MainWin(QMainWindow):
     def loadPlayList(self):
         dirname = self._lastdir[0] if self._lastdir else QDir.homePath()
         selectedFile = QFileDialog.getOpenFileName(self,
-                                                   translate("Playlist", translate("Playlist", 'Select m3u file...')), )
+                                                   translate("Playlist", translate("Playlist", 'Select m3u file...')),)
         filename = selectedFile[0]
         if not filename:
             return
@@ -891,6 +896,7 @@ class MainWin(QMainWindow):
 
                 model.updateTable(failed_rows)
             return fin()
+
         return func, finished, rows
 
     def writeTags(self, tagiter, rows=None, previews=None):
@@ -1007,7 +1013,7 @@ class MainWin(QMainWindow):
                     yield None
                 except EnvironmentError as e:
                     m = translate("Dir Renaming",
-                                  'An error occured while renaming <b>%1</b> to ' \
+                                  'An error occured while renaming <b>%1</b> to '
                                   '<b>%2</b>. (%3)').arg(audio[PATH]).arg(filename).arg(e.strerror)
                     if row == rows[-1]:
                         yield m, 1
