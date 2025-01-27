@@ -125,7 +125,7 @@ def check_libs():
              ('configobj', '(usually python3-configobj)',
               'http://code.google.com/p/configobj/'),
              ('pyparsing', '(python3-pyparsing or python3-parsing in most distros)',
-              'http://pyparsing.wikispaces.com/'),
+              'https://github.com/pyparsing/pyparsing/'),
              ('PyQt5', '(python3-pyqt5 usually)',
               'http://www.riverbankcomputing.co.uk/software/pyqt/intro')]
 
@@ -278,10 +278,11 @@ def print_info():
     """Print program info."""
     from puddlestuff import version_string, changeset
     if changeset:
-        print(translate('Defaults', 'puddletag Version: %1, Changeset: %2').arg(
-            version_string).arg(changeset))
+        print(translate('Defaults', "puddletag Version: {}, Changeset: {}")
+              .format(version_string, changeset))
     else:
-        print(translate('Defaults', 'puddletag Version: %s' % version_string))
+        print(translate('Defaults', 'puddletag Version: {}'
+              .format(version_string)))
 
 
 def splashscreen():
@@ -289,7 +290,7 @@ def splashscreen():
     from PyQt5.QtWidgets import QSplashScreen
     from puddlestuff import version_string
 
-    pixmap = QPixmap(':/puddlelogo.png')
+    pixmap = QPixmap('icons:puddlelogo.png')
 
     # Add version
     painter = QPainter(pixmap)

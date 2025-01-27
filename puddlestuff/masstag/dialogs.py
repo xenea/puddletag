@@ -7,7 +7,7 @@ from PyQt5.QtCore import QMutex, QObject, pyqtSignal
 from PyQt5.QtWidgets import QApplication, QCheckBox, QComboBox, QDialog, QGridLayout, QHBoxLayout, QLabel, \
     QLineEdit, QPushButton, QSpinBox, QTextEdit, QVBoxLayout, QWidget
 
-from .. import masstag
+from .. import masstag as masstag_module
 from ..constants import RIGHTDOCK
 from ..masstag import (NO_MATCH_OPTIONS, fields_from_text, match_files, masstag, merge_tsp_tracks,
                        split_files, MassTagFlag, MassTagProfile, TagSourceProfile)
@@ -30,19 +30,20 @@ def set_status(msg):
     QApplication.processEvents()
 
 
-masstag.set_status = set_status
+# monkey-patch the module to use the gui output
+masstag_module.set_status = set_status
 
 mutex = QMutex()
 
 
 def search_error(error, profile):
     set_status(translate('Masstagging',
-                         'An error occured during the search: <b>%s</b>') % str(error))
+                         "An error occured during the search: <b>{}</b>").format(str(error)))
 
 
 def retrieval_error(error, profile):
     set_status(translate('Masstagging',
-                         'An error occured during album retrieval: <b>%s</b>') % str(error))
+                         "An error occured during album retrieval: <b>{}</b>").format(str(error)))
 
 
 class MassTagEdit(QDialog):
@@ -631,16 +632,16 @@ class MassTagWindow(QWidget):
                                  mtp.file_pattern)
 
         search_msg = translate('Masstagging',
-                               'An error occured during the search: <b>%s</b>')
+                               "An error occured during the search: <b>{}</b>")
 
         retrieve_msg = translate('Masstagging',
-                                 'An error occured during album retrieval: <b>%s</b>')
+                                 "An error occured during album retrieval: <b>{}</b>")
 
         def search_error(error, mtp):
-            thread.statusChanged.emit(search_msg % str(error))
+            thread.statusChanged.emit(search_msg.format(str(error)))
 
         def retrieval_error(error, mtp):
-            thread.statusChanged.emit(retrieve_msg % str(error))
+            thread.statusChanged.emit(retrieve_msg.format(str(error)))
 
         def run_masstag():
             replace_fields = []

@@ -257,6 +257,20 @@ def getinfo(filename):
     })
 
 
+def get_filename_tags(filepath: str) -> dict:
+    filepath = to_string(filepath, 'replace')
+    ret = {
+        PATH: filepath,
+        DIRPATH: path.dirname(filepath),
+        FILENAME: path.basename(filepath),
+    }
+    ret[FILENAME_NO_EXT], ret[EXTENSION] = path.splitext(ret[FILENAME])
+    ret[EXTENSION] = ret[EXTENSION][1:]  # Remove the leading dot
+    ret[DIRNAME] = path.basename(ret[DIRPATH])
+    ret[PARENT_DIR] = path.basename(path.dirname(ret[DIRPATH]))
+    return ret
+
+
 def get_mime(data):
     """Retrieve the mimetype of the image data (a bytes object).
 
@@ -550,7 +564,7 @@ def stringtags(tag, leaveNone=False):
         if i in INFOTAGS:
             newtag[i] = v
             continue
-        if isinstance(i, (int, int, float)) or hasattr(v, 'items'):
+        if isinstance(i, (int, float)) or hasattr(v, 'items'):
             continue
 
         if leaveNone and isempty(v):
@@ -563,6 +577,8 @@ def stringtags(tag, leaveNone=False):
             newtag[i] = v
         elif isinstance(v, (int, float)):
             newtag[i] = str(v)
+        elif isinstance(v, list) and isinstance(v[0], str):
+            newtag[i] = r'\\'.join(v)
         elif isinstance(i, str) and not isinstance(v, str):
             newtag[i] = v[0]
         else:
@@ -740,21 +756,11 @@ class MockTag(object):
 
     def set_filepath(self, val):
         self.__filepath = path_to_string(val)
-        val = to_string(val, 'replace')
 
         if hasattr(self, 'mut_obj'):
             self.mut_obj.filename = self.__filepath
-        ret = {
-            PATH: val,
-            DIRPATH: path.dirname(val),
-            FILENAME: path.basename(val)}
 
-        ret[FILENAME_NO_EXT], ret[EXTENSION] = path.splitext(ret[FILENAME])
-        ret[EXTENSION] = ret[EXTENSION][1:]
-        ret[DIRNAME] = path.basename(ret[DIRPATH])
-        ret[PARENT_DIR] = path.basename(path.dirname(ret[DIRPATH]))
-
-        return ret
+        return get_filename_tags(to_string(val, 'replace'))
 
     filepath = property(get_filepath, set_filepath)
 
@@ -869,7 +875,7 @@ class MockTag(object):
     def stringtags(self):
         return stringtags(self)
 
-    def update(self, dictionary=None, **kwargs):
+    def update(self, dictionary=None):
         if dictionary is None:
             return
         if hasattr(dictionary, 'items'):

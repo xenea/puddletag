@@ -16,10 +16,10 @@ from functools import partial
 from glob import glob
 from io import StringIO
 from itertools import groupby  # for unique function.
-from typing import List, Optional, Union
+from typing import Any, Callable, Generator, List, Optional, Tuple, Union
 
-from PyQt5.QtCore import QBuffer, QByteArray, QCollator, QCollatorSortKey, QDir, QLocale, QRectF, QSettings, QSize, \
-    QThread, QTimer, Qt, pyqtSignal
+from PyQt5.QtCore import QBuffer, QByteArray, QCollator, QCollatorSortKey, QDir, QLocale, QObject, QRectF, QSettings, \
+    QSize, QThread, QTimer, Qt, pyqtSignal
 from PyQt5.QtCore import QFile, QIODevice
 from PyQt5.QtGui import QIcon, QBrush, QPixmap, QImage, \
     QKeySequence
@@ -451,7 +451,7 @@ def get_icon(name: Optional[str] = None, fallback: Optional[str] = None) -> QIco
         return QIcon()
 
     fallback = fallback or f'{name}.png'
-    return QIcon.fromTheme(name, QIcon(f':/{fallback}'))
+    return QIcon.fromTheme(name, QIcon(f'icons:{fallback}'))
 
 
 def get_languages(dirs=None):
@@ -459,9 +459,9 @@ def get_languages(dirs=None):
     if dirs is not None:
         for d in dirs:
             files.extend(glob(os.path.join(d, "*.qm")))
-    d = QDir(':/')
-    if d.cd('translations'):
-        files.extend([os.path.join(':/translations', t) for t in
+    d = QDir('translations:./')
+    if not d.isEmpty():
+        files.extend([os.path.join('translations:./', t) for t in
                       map(str, d.entryList(['*.qm']))])
 
     ret = {}
@@ -607,7 +607,8 @@ def natural_sort_key(s: Union[str, List[str]], case_insensitive=True) -> QCollat
     It also takes the global user preferences into account (e.g. LC_COLLATE).
     """
     if isinstance(s, list):
-        s = s[0]
+        # Join all elements with ascii unit separator
+        s = '\x1f'.join(s)
 
     locale = QLocale.system().collation() if case_insensitive else QLocale.c()
     collator = QCollator(locale)
@@ -639,34 +640,29 @@ def dupes(l, method=None):
     return [z for z in groups if len(z) > 1]
 
 
-def getfiles(files, subfolders=False):
-    if isinstance(files, str):
+def getfiles(files: Union[str, List[str]], subfolders: bool = False) -> Generator[str, None, None]:
+    """For the given path(s), yield all the files.
+
+    If path does not exist, ignore it.
+    If path is a directory, yield all the files in that directory.
+    If subfolders is True, also recurse into subdirectories and yield their files.
+    """
+    if not isinstance(files, list):
         files = [files]
 
-    isdir = os.path.isdir
-    join = os.path.join
+    for file in files:
+        if not os.path.exists(file):
+            continue
+        if not os.path.isdir(file):
+            yield file
+            continue
 
-    temp = []
-
-    if not subfolders:
-        for f in files:
-            if not isdir(f):
-                yield f
-            else:
-                dirname, subs, fnames = next(os.walk(f))
-                for fname in fnames:
-                    yield join(dirname, fname)
-    else:
-        for f in files:
-            if not isdir(f):
-                yield f
-            else:
-                for dirname, subs, fnames in os.walk(f):
-                    for fname in fnames:
-                        yield join(dirname, fname)
-                    for sub in subs:
-                        for fname in getfiles(join(dirname, sub), subfolders):
-                            pass
+        for dirpath, dirnames, filenames in os.walk(file):
+            for filename in filenames:
+                yield os.path.join(dirpath, filename)
+            if not subfolders:
+                # don't recurse deeper
+                dirnames.clear()
 
 
 def gettags(files):
@@ -783,7 +779,7 @@ def load_actions():
 
     files = glob(os.path.join(ACTIONDIR, '*.action'))
     if firstrun and not files:
-        filenames = [':/caseconversion.action', ':/standard.action']
+        filenames = ['data:./caseconversion.action', 'data:./standard.action']
         files = list(map(open_resourcefile, filenames))
         set_value('firstrun', False)
 
@@ -810,7 +806,8 @@ def open_resourcefile(filename):
     return StringIO(str(f.readAll().data(), encoding='utf-8'))
 
 
-def progress(func, pstring, maximum, threadfin=None):
+def progress(func: Callable[..., Generator[Optional[Tuple[str, int]], None, None]],
+             pstring: str, maximum: int, threadfin: Optional[Callable[[], None]] = None) -> Callable[..., None]:
     """To be used for functions that need a threaded progressbar.
 
     Note that this function will only (and is meant to) work on dialogs.
@@ -853,7 +850,7 @@ def progress(func, pstring, maximum, threadfin=None):
         if maximum == 1:
             errors = next(f)
             if errors and \
-                    not isinstance(errors, (str, str, int, int, str)):
+                    not isinstance(errors, (str, int)):
                 errormsg(parent, errors[0], 1)
             if threadfin:
                 threadfin()
@@ -866,13 +863,13 @@ def progress(func, pstring, maximum, threadfin=None):
 
         parent.showmessage = True
 
-        def threadfunc():
+        def threadfunc() -> None:
             i = 0
             err = False
             while not win.wasCanceled:
                 try:
                     temp = next(f)
-                    if isinstance(temp, (str, str)):
+                    if isinstance(temp, str):
                         thread.message.emit(temp)
                     elif isinstance(temp, int):
                         thread.set_max.emit(temp)
@@ -890,7 +887,7 @@ def progress(func, pstring, maximum, threadfin=None):
             if not err:
                 thread.win.emit(-1)
 
-        def threadexit(*args):
+        def threadexit(*args) -> None:
             if args[0] == -1:
                 win.close()
                 win.destroy()
@@ -903,7 +900,7 @@ def progress(func, pstring, maximum, threadfin=None):
                     except RuntimeError:
                         pass
                 return
-            elif isinstance(args[0], (str, str)):
+            elif isinstance(args[0], str):
                 if parent.showmessage:
                     ret = errormsg(parent, args[0], maximum)
                     if ret is True:
@@ -918,12 +915,12 @@ def progress(func, pstring, maximum, threadfin=None):
                 thread.start()
             win.setValue(win.value + 1)
 
-        def set_message(msg):
+        def set_message(msg: str) -> None:
             if msg != win.label.text():
                 win.label.setText(msg)
                 QApplication.processEvents()
 
-        def set_max(value):
+        def set_max(value: int) -> None:
             win.pbar.setMaximum(value)
 
         thread = PuddleThread(threadfunc, parent)
@@ -1558,7 +1555,7 @@ class PicWidget(QWidget):
                    If False, then these functions can be found by right clicking
                    on the picture."""
 
-        self._contextFormat = translate("Artwork Context", '%1/%2')
+        self._contextFormat = translate('Artwork Context', "{}/{}")
 
         QWidget.__init__(self, parent)
         self.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
@@ -1953,7 +1950,7 @@ class PicWidget(QWidget):
             self._image_type.setCurrentIndex(3)
         self._image_type.blockSignals(False)
         self._currentImage = num
-        self.context = str(self._contextFormat.arg(str(num + 1)).arg(str(len(self.images))))
+        self.context = self._contextFormat.format(str(num + 1), str(len(self.images)))
         self.label.setFrameStyle(QFrame.Shape.NoFrame)
         self.enableButtons()
         # self.resizeEvent()
@@ -1998,8 +1995,10 @@ class PicWidget(QWidget):
             if not filename:
                 return
             if not self.pixmap.save(filename):
-                QMessageBox.critical(self, translate("Defaults", 'Error'),
-                                     translate("Artwork", 'Writing to <b>%1</b> failed.').arg(filename))
+                QMessageBox.critical(self,
+                                     translate('Defaults', "Error"),
+                                     translate('Artwork', "Writing to <b>{}</b> failed.").format(filename)
+                                     )
 
     def setNone(self):
         self.label.setFrameStyle(QFrame.Shape.Box)
@@ -2154,13 +2153,14 @@ class PicWin(QDialog):
 class ProgressWin(QDialog):
     canceled = pyqtSignal(name='canceled')
 
-    def __init__(self, parent=None, maximum=100, progresstext='', showcancel=True):
+    def __init__(self, parent: Optional[QObject] = None, maximum: int = 100, progresstext: str = '',
+                 showcancel: bool = True) -> None:
         QDialog.__init__(self, parent)
         self._infunc = False
         self._cached = 0
         self.setModal(True)
         self.setWindowTitle(translate("Progress Dialog", "Please Wait..."))
-        self._format = translate("Progress Dialog", '%1%2 of %3...')
+        self._format = translate('Progress Dialog', "{}{} of {}...")
 
         self.ptext = progresstext
 
@@ -2209,20 +2209,20 @@ class ProgressWin(QDialog):
         if maximum <= 0:
             self._timer.start()
 
-    def setValue(self, value):
+    def setValue(self, value: int) -> None:
         if self._infunc:
             return
         self._infunc = True
         if self.ptext:
             self.pbar.setTextVisible(False)
-            self.label.setText(self._format.arg(self.ptext
-                                                ).arg(value).arg(self.pbar.maximum()))
+            self.label.setText(self._format.format(
+                self.ptext, value, self.pbar.maximum()))
         self.pbar.setValue(value)
         self._infunc = False
         if self.pbar.maximum() and value >= self.pbar.maximum():
             self.close()
 
-    def cancel(self):
+    def cancel(self) -> None:
         self.wasCanceled = True
         self.canceled.emit()
         self.close()
@@ -2233,7 +2233,7 @@ class ProgressWin(QDialog):
         super(ProgressWin, self).closeEvent(event)
 
     @property
-    def value(self):
+    def value(self) -> int:
         return self.pbar.value()
 
 
@@ -2403,20 +2403,20 @@ class PuddleThread(QThread):
     error = pyqtSignal([str, int], name='error')
     win = pyqtSignal(int, name='win')
 
-    def __init__(self, command, parent=None):
+    def __init__(self, command: Callable[[], Any], parent: Optional[QObject] = None) -> None:
         QThread.__init__(self, parent)
         self.finished.connect(self._finish)
         self.command = command
         self.retval = None
 
-    def run(self):
+    def run(self) -> None:
         # print 'thread', self.command, time.time()
         try:
             self.retval = self.command()
         except StopIteration:
             self.retval = 'STOP'
 
-    def _finish(self):
+    def _finish(self) -> None:
         if hasattr(self, 'retval'):
             self.threadfinished.emit(self.retval)
         else:

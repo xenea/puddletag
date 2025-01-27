@@ -8,13 +8,12 @@ from copy import deepcopy
 from decimal import Decimal
 from functools import partial
 
-from pyparsing import (Word, alphas, Literal, OneOrMore, alphanums,
-                       nums, delimitedList, Combine, QuotedString,
-                       CharsNotIn, originalTextFor, nestedExpr,
-                       Optional)
+from pyparsing import (CharsNotIn, Combine, Literal, OneOrMore, Optional, ParserElement,
+                       QuotedString, Word, alphanums, alphas, delimited_list, nested_expr,
+                       nums, original_text_for)
 
 from . import audioinfo
-from .constants import ACTIONDIR, CHECKBOX, SPINBOX, SYNTAX_ERROR, SYNTAX_ARG_ERROR
+from .constants import ACTIONDIR, CHECKBOX, SEPARATOR, SPINBOX, SYNTAX_ERROR, SYNTAX_ARG_ERROR
 from .funcprint import pprint
 from .puddleobjects import PuddleConfig, safe_name
 from .util import PluginFunction, translate, to_list, to_string
@@ -29,6 +28,9 @@ FIELDS = 'fields'
 FUNC_MODULE = 'module'
 ARGS = 'arguments'
 KEYWORD_ARGS = set(['tags', 'm_tags', 'r_tags', 'state'])
+
+
+ParserElement.enable_packrat()
 
 
 class ParseError(Exception):
@@ -53,17 +55,17 @@ def arglen_error(e, passed, function, to_raise=True):
     message = None
     if args_len > param_len:
         message = translate('Functions',
-                            'At most %1 arguments expected. %2 given.')
+                            "At most {} arguments expected. {} given.")
     elif args_len < param_len:
         default_len = len(function.__defaults__) if \
             function.__defaults__ else 0
         if args_len < (param_len - default_len):
             message = translate('Functions',
-                                'At least %1 arguments expected. %2 given.')
+                                "At least {} arguments expected. {} given.")
     else:
         raise e
     if message is not None:
-        message = message.arg(str(param_len)).arg(str(args_len))
+        message = message.format(str(param_len), str(args_len))
     else:
         raise e
     if to_raise:
@@ -213,10 +215,9 @@ def func_tokens(dictionary, parse_action):
     func_name = Word(alphas + '_', alphanums + '_')
 
     func_ident = Combine('$' + func_name.copy()('funcname'))
-    func_tok = func_ident + originalTextFor(nestedExpr())('args')
-    func_tok.leaveWhitespace()
-    func_tok.setParseAction(parse_action)
-    func_tok.enablePackrat()
+    func_tok = func_ident + original_text_for(nested_expr())('args')
+    func_tok.leave_whitespace()
+    func_tok.set_parse_action(parse_action)
 
     rx_tok = Combine(Literal('$').suppress() + Word(nums)('num'))
 
@@ -224,16 +225,16 @@ def func_tokens(dictionary, parse_action):
         index = int(tokens.num)
         return dictionary.get(index, '')
 
-    rx_tok.setParseAction(replace_token)
+    rx_tok.set_parse_action(replace_token)
 
     strip = lambda s, l, tok: tok[0].strip()
-    text_tok = CharsNotIn(',').setParseAction(strip)
+    text_tok = CharsNotIn(',').set_parse_action(strip)
     quote_tok = QuotedString('"')
 
     if dictionary:
-        arglist = Optional(delimitedList(quote_tok | rx_tok | text_tok))
+        arglist = Optional(delimited_list(quote_tok | rx_tok | text_tok))
     else:
-        arglist = Optional(delimitedList(quote_tok | text_tok))
+        arglist = Optional(delimited_list(quote_tok | text_tok))
 
     return func_tok, arglist, rx_tok
 
@@ -266,7 +267,7 @@ def get_function_arguments(funcname, func, arguments, reserved, fmt=True, *dicts
                 if float(arg) or float(arg) == 0:
                     topass[param] = Decimal(arg)
             except ValueError:
-                raise ParseError(SYNTAX_ARG_ERROR % (funcname, no + 1))
+                raise ParseError(SYNTAX_ARG_ERROR.format(funcname, no + 1))
         else:
             if isinstance(arg, str) and fmt:
                 topass[param] = replacevars(arg, *dicts)
@@ -305,8 +306,8 @@ def run_format_func(funcname, arguments, m_audio, s_audio=None, extra=None,
         else:
             func = funcname
     except KeyError:
-        raise ParseError(SYNTAX_ERROR.arg(funcname).arg(
-            translate('Defaults', 'function does not exist.')))
+        raise ParseError(SYNTAX_ERROR.format(funcname,
+                                             translate('Defaults', "function does not exist.")))
 
     extra = {} if extra is None else extra
     s_audio = stringtags(m_audio) if s_audio is None else s_audio
@@ -321,11 +322,11 @@ def run_format_func(funcname, arguments, m_audio, s_audio=None, extra=None,
             return ''
         return ret
     except TypeError as e:
-        message = SYNTAX_ERROR.arg(funcname)
-        message = message.arg(arglen_error(e, topass, func, False))
+        message = SYNTAX_ERROR.format(funcname,
+                                      arglen_error(e, topass, func, False))
         raise ParseError(message)
     except FuncError as e:
-        message = SYNTAX_ERROR.arg(funcname).arg(e.message)
+        message = SYNTAX_ERROR.format(funcname, e.message)
         raise ParseError(message)
 
 
@@ -393,7 +394,7 @@ def parsefunc(s, m_audio, s_audio=None, state=None, extra=None, ret_i=False, pat
             c = s[i]
         except IndexError:  # Parsing's done.
             if in_func:
-                raise ParseError(SYNTAX_ERROR.arg(func[0]).arg(br_error))
+                raise ParseError(SYNTAX_ERROR.format(func[0], br_error))
             if token:
                 tokens.append(replacevars(''.join(token), tags))
             break
@@ -613,6 +614,8 @@ def apply_actions(actions, audio, state=None, ovr_fields=None):
             if temp is None:
                 continue
             if isinstance(temp, str):
+                if SEPARATOR in temp:
+                    temp = temp.split(SEPARATOR)
                 ret[field] = temp
             elif hasattr(temp, 'items'):
                 ret.update(temp)
@@ -760,12 +763,12 @@ def tagtotag(pattern, text, expression):
             return "(.*)"
         return "(.*?)"
 
-    expression.setParseAction(what)
+    expression.set_parse_action(what)
     global numtimes
-    numtimes = len([z for z in expression.scanString(pattern)])
+    numtimes = len([z for z in expression.scan_string(pattern)])
     if not numtimes:
         return
-    pattern = expression.transformString(pattern)
+    pattern = expression.transform_string(pattern)
     try:
         tags = re.search(pattern, text).groups()
     except AttributeError:
@@ -826,9 +829,9 @@ class Function:
         self.doc = self.function.__doc__.split("\n")
 
         identifier = QuotedString('"') | Combine(Word(alphanums + ' !"#$%&\'()*+-./:;<=>?@[\\]^_`{|}~'))
-        tags = delimitedList(identifier)
+        tags = delimited_list(identifier)
 
-        self.info = [z for z in tags.parseString(self.doc[0])]
+        self.info = [z for z in tags.parse_string(self.doc[0])]
 
     def setArgs(self, args):
         self.args = args
@@ -892,15 +895,15 @@ class Function:
 
     def _getControls(self, index=1):
         identifier = QuotedString('"') | CharsNotIn(',')
-        arglist = delimitedList(identifier)
+        arglist = delimited_list(identifier)
         docstr = self.doc[1:]
         if index:
-            return [(arglist.parseString(line)[index]).strip()
+            return [(arglist.parse_string(line)[index]).strip()
                     for line in docstr]
         else:
             ret = []
             for line in docstr:
-                ret.append([z.strip() for z in arglist.parseString(line)])
+                ret.append([z.strip() for z in arglist.parse_string(line)])
             return ret
 
     def setTag(self, tag):

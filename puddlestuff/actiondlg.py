@@ -8,7 +8,7 @@ from PyQt5.QtCore import Qt, pyqtSignal
 from PyQt5.QtWidgets import QAbstractItemView, QAction, QApplication, QCheckBox, QComboBox, QCompleter, \
     QDialog, QFrame, QGridLayout, QInputDialog, QLabel, QLineEdit, QListWidgetItem, QMenu, QMessageBox, \
     QScrollArea, QSizePolicy, QSpinBox, QStackedWidget, QToolButton, QVBoxLayout, QWidget
-from pyparsing import delimitedList, alphanums, Combine, Word, QuotedString
+from pyparsing import delimited_list, alphanums, Combine, Word, QuotedString
 
 from . import findfunc, functions
 from . import functions_dialogs
@@ -186,7 +186,7 @@ class FunctionDialog(QWidget):
         QWidget.__init__(self, parent)
         identifier = QuotedString('"') | Combine(Word
                                                  (alphanums + ' !"#$%&\'()*+-./:;<=>?@[\\]^_`{|}~'))
-        tags = delimitedList(identifier)
+        tags = delimited_list(identifier)
         self.func = Function(funcname)
         docstr = self.func.doc[1:]
         self.vbox = QVBoxLayout()
@@ -236,7 +236,7 @@ class FunctionDialog(QWidget):
         # Loop that creates all the controls
         self.controls = []
         for argno, line in enumerate(docstr):
-            args = tags.parseString(line)
+            args = tags.parse_string(line)
             label = args[0]
             ctype = args[1]
             default = args[2:]
@@ -900,12 +900,12 @@ class ActionWindow(QDialog):
 
         files = glob(os.path.join(ACTIONDIR, '*.action'))
         if firstrun and not files:
-            filenames = [':/caseconversion.action', ':/standard.action']
+            filenames = ['data:./caseconversion.action', 'data:./standard.action']
             files = list(map(open_resourcefile, filenames))
             set_value('firstrun', False)
 
             for fileobj, filename in zip(files, filenames):
-                filename = os.path.join(ACTIONDIR, filename[2:])
+                filename = os.path.join(ACTIONDIR, filename.rsplit('/', maxsplit=1)[1])
                 f = open(filename, 'w')
                 f.write(fileobj.read())
                 f.close()
@@ -1062,7 +1062,7 @@ class ActionWindow(QDialog):
 
         win = CreateAction(self, actions, example=self.example)
         win.setWindowTitle(
-            translate('Actions', "Edit Action: %s") % name)
+            translate('Actions', "Edit Action: {}").format(name))
 
         win.show()
         dupebuddy = partial(self.duplicateBuddy, name)

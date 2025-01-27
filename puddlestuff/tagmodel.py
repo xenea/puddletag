@@ -9,7 +9,7 @@ from os import path
 from subprocess import Popen
 
 from PyQt5.QtCore import QAbstractTableModel, QEvent, QItemSelection, QItemSelectionModel, QItemSelectionRange, \
-    QMimeData, QModelIndex, QPoint, QUrl, Qt, pyqtSignal
+    QMetaObject, QMimeData, QModelIndex, QPoint, QUrl, Qt, pyqtSignal, pyqtSlot, Q_ARG
 from PyQt5.QtGui import QColor, QFont, QDrag, QPalette
 from PyQt5.QtWidgets import QAbstractItemDelegate, QAbstractItemView, QAction, QApplication, QDialog, QGridLayout, QGroupBox, \
     QHBoxLayout, QHeaderView, QLabel, QLineEdit, QMenu, QMessageBox, QPushButton, QStyledItemDelegate, QTableView, \
@@ -17,7 +17,7 @@ from PyQt5.QtWidgets import QAbstractItemDelegate, QAbstractItemView, QAction, Q
 
 from . import audioinfo
 from .audioinfo import (PATH, FILENAME, DIRPATH, FILETAGS, READONLY, INFOTAGS, DIRNAME,
-                        EXTENSION, CaselessDict, encode_fn, decode_fn)
+                        EXTENSION, FILENAME_NO_EXT, PARENT_DIR, CaselessDict, encode_fn, decode_fn, get_filename_tags)
 from .puddleobjects import (unique, partial, natural_sort_key, gettag,
                             HeaderSetting, getfiles, progress, PuddleConfig, singleerror, winsettings, issubfolder,
                             fnmatch)
@@ -263,30 +263,45 @@ def model_tag(model, base=audioinfo.AbstractTag):
                 if key not in READONLY:
                     if not value and key in self.preview:
                         del (self.preview[key])
-                        return
-                    self.preview[key] = value
+                    else:
+                        self.preview[key] = value
+                    if key in FILETAGS:
+                        self.update_file_fields_in_preview(key)
             else:
                 super(ModelTag, self).__setitem__(key, value)
 
-        def remove_from_preview(self, key):
-            if key == EXTENSION:
-                del (self.preview[key])
-            elif key == FILENAME:
-                for k in [FILENAME, EXTENSION, PATH]:
-                    if k in self.preview:
-                        del (self.preview[k])
-            elif key in FILETAGS:
-                for k in FILETAGS:
-                    if k in self.preview:
-                        del (self.preview[k])
+        def update_file_fields_in_preview(self, changed_key):
+            """ Reimplements the setter-logic of the matching properties in MockTag, but for the preview."""
+            if not changed_key or changed_key == PATH:
+                filepath = self[PATH]
+            elif changed_key in (DIRPATH, FILENAME):
+                filepath = path.join(self[DIRPATH], self[FILENAME])
+            elif changed_key in (FILENAME_NO_EXT, EXTENSION):
+                filepath = path.join(self[DIRPATH], self[FILENAME_NO_EXT])
+                if self[EXTENSION]:
+                    filepath += os.path.extsep + self[EXTENSION]
+            elif changed_key == DIRNAME:
+                filepath = path.join(path.dirname(self[DIRPATH]), self[DIRNAME], self[FILENAME])
             else:
-                del (self.preview[key])
+                return
 
-        def update(self, *args, **kwargs):
+            # clear all file fields from the preview
+            for k in FILETAGS:
+                if k in self.preview:
+                    del self.preview[k]
+            # and then write only those that actually are different
+            for k, v in get_filename_tags(filepath).items():
+                if self[k] != v:
+                    self.preview[k] = v
+
+        def update(self, dictionary=None):
+            if not dictionary:
+                return
             if model.previewMode:
-                self.preview.update(*args, **kwargs)
+                for k, v in dictionary.items():
+                    self[k] = v
             else:
-                super(ModelTag, self).update(*args, **kwargs)
+                super().update(dictionary)
 
     return ModelTag
 
@@ -712,7 +727,7 @@ class TagModel(QAbstractTableModel):
                     except KeyError:
                         real = BLANK
                     if real != val:
-                        tooltip = str(translate("Table", 'Preview: %1\nReal: %2').arg(val).arg(self._toString(real)))
+                        tooltip = translate('Table', "Preview: {}\nReal: {}").format(val, self._toString(real))
                     else:
                         tooltip = val
                 else:
@@ -971,6 +986,7 @@ class TagModel(QAbstractTableModel):
             except IndexError:
                 break
 
+    @pyqtSlot(int, result=bool)
     def removeRows(self, position, rows=1, index=QModelIndex()):
         """Please, only use this function to remove one row at a time. For some reason, it doesn't work
         too well on debian if more than one row is removed at a time."""
@@ -1593,9 +1609,9 @@ class TagTable(QTableView):
                     deltag(row)
                     yield None
                 except (OSError, IOError) as e:
-                    msg = translate('Table', "An error occurred while "
-                                             "deleting the tag of %1: <b>%2</b>")
-                    msg = msg.arg(e.filename).arg(e.strerror)
+                    msg = translate('Table',
+                                    "An error occurred while deleting the tag of {}: <b>{}</b>"
+                                    ).format(e.filename, e.strerror)
                     yield msg, len(self.selectedRows)
                 except NotImplementedError as e:
                     f = self.model().taginfo[row]
@@ -1603,8 +1619,8 @@ class TagTable(QTableView):
                     ext = f[EXTENSION]
                     rowlen = len(self.selectedRows)
                     yield translate("Table", "There was an error deleting the "
-                                             "tag of %1: <b>Tag deletion isn't supported"
-                                             "for %2 files.</b>").arg(filename).arg(ext), rowlen
+                                             "tag of {}: <b>Tag deletion isn't supported "
+                                             "for {} files.</b>").format(filename, ext), rowlen
 
         def fin():
             self.selectionChanged()
@@ -1647,7 +1663,6 @@ class TagTable(QTableView):
             return
         selected = self.selectedTags
         selectedRows = self.selectedRows
-        removeRows = self.model().removeRows
         curindex = self.currentIndex()
         last = max(selectedRows) - len(selectedRows) + 1, curindex.column()
         libtags = []
@@ -1661,7 +1676,10 @@ class TagTable(QTableView):
                     if audio.library:
                         audio.remove()
                         libtags.append(audio)
-                    removeRows(temprows[i])
+                    # Cross-thread call
+                    QMetaObject.invokeMethod(self.model(), 'removeRows',
+                                             Q_ARG(int, temprows[i]),
+                                             )
                     temprows = [z - 1 for z in temprows]
                     yield None
                 except (OSError, IOError) as detail:
@@ -1876,13 +1894,11 @@ class TagTable(QTableView):
 
         tags = []
         if len(dirs) == 1:
-            reading_dir = translate("Defaults",
-                                    'Reading Directory: %1').arg(dirs[0])
+            reading_dir = translate('Defaults', "Reading Directory: {}").format(dirs[0])
         elif dirs:
-            reading_dir = translate("Defaults",
-                                    'Reading Directory: %1 + others').arg(dirs[0])
+            reading_dir = translate('Defaults', "Reading Directory: {} + others").format(dirs[0])
         else:
-            reading_dir = translate('Defaults', 'Reading Dir')
+            reading_dir = translate('Defaults', "Reading Dir")
 
         def load_dir():
             if files:
@@ -2034,15 +2050,17 @@ class TagTable(QTableView):
                 Popen(li)
             except (OSError) as detail:
                 if detail.errno != 2:
-                    QMessageBox.critical(self, translate("Defaults", "Error"),
-                                         translate("Table",
-                                                   "An error occurred while trying to play the selected files: <b>%1</b> "
-                                                   "<br />Does the music player you defined (<b>%2</b>)"
-                                                   " exist?").arg(detail.strerror).arg(" ".join(self.playcommand)))
+                    QMessageBox.critical(self, translate('Defaults', "Error"),
+                                         translate('Table',
+                                                   "An error occurred while trying to play the selected files: "
+                                                   "<b>{}</b><br />Does the music player you defined (<b>{}</b>) "
+                                                   "exist?").format(detail.strerror, " ".join(self.playcommand)))
                 else:
-                    QMessageBox.critical(self, translate("Defaults", "Error"),
-                                         translate("Table", "It wasn't possible to play the selected files, because the music player you defined (<b>%1</b>) does not exist.").arg(
-                                             " ".join(self.playcommand)))
+                    QMessageBox.critical(self, translate('Defaults', "Error"),
+                                         translate('Table',
+                                                   "It wasn't possible to play the selected files, because the music "
+                                                   "player you defined (<b>{}</b>) does not exist."
+                                                   ).format(" ".join(self.playcommand)))
 
     def previewMode(self, value):
         if not value:

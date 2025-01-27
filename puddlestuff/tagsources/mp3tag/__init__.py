@@ -35,8 +35,8 @@ def getnum(s, l, t):
     return int(''.join(t))
 
 
-STRING = QuotedString('"', '\\', unquoteResults=False).setParseAction(unquote)
-NUMBER = Combine(Optional('-') + Word(nums)).setParseAction(getnum)
+STRING = QuotedString('"', '\\', unquote_results=False).set_parse_action(unquote)
+NUMBER = Combine(Optional('-') + Word(nums)).set_parse_action(getnum)
 COVER = '#cover-url'
 
 ARGUMENT = STRING | NUMBER
@@ -153,7 +153,7 @@ def parse_func(lineno, line):
     funcname = line.split(None, 1)[0].strip()
     arg_string = line[len(funcname):]
     args = (z[0]
-            for z in ARGUMENT.searchString(arg_string).asList())
+            for z in ARGUMENT.search_string(arg_string).as_list())
     args = [i.replace('\\\\', '\\') if isinstance(i, str) else i
             for i in args]
     if funcname and not funcname.startswith('#'):
@@ -355,7 +355,7 @@ class Mp3TagSource(object):
 
         url = self._search_base.replace('%s', keywords)
 
-        write_log(translate('Mp3tag', 'Retrieving search page: %s') % url)
+        write_log(translate('Mp3tag', "Retrieving search page: {}").format(url))
         set_status(translate('Mp3tag', 'Retrieving search page...'))
         if self.html is None:
             page = get_encoding(urlopen(url), True, 'utf8')[1]
@@ -383,7 +383,7 @@ class Mp3TagSource(object):
         info['#url'] = url
 
         try:
-            write_log(translate('Mp3tag', 'Retrieving album page: %s') % url)
+            write_log(translate('Mp3tag', "Retrieving album page: {}").format(url))
             set_status(translate('Mp3tag', 'Retrieving album page...'))
             page = get_encoding(urlopen(url), True, 'utf8')[1]
         except:
@@ -415,7 +415,6 @@ def load_mp3tag_sources(dirpath='.'):
             idents, search, album = open_script(f)
             classes.append(Mp3TagSource(idents, search, album))
         except:
-            # print translate("Tag Sources", "Couldn't load Mp3tag Tag Source %s") % f
             traceback.print_exc()
             continue
     return classes

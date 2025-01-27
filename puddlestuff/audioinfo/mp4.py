@@ -43,7 +43,21 @@ TAGS = {
     'cpil': 'partofcompilation',
     'pgap': 'partofgaplessalbum',
     'pcst': 'podcast',
-    'tmpo': 'bpm'}
+    'tmpo': 'bpm',
+    'akID': 'itunesaccounttype',
+    'apID': 'itunesaccount',
+    'atID': 'itunesartistid',
+    'cmID': 'itunescomposerid',
+    'cnID': 'itunescatalogid',
+    'geID': 'itunesgenreid',
+    'plID': 'itunesalbumid',
+    'prID': 'itunesproductid',
+    'sfID': 'itunesstorecountry',
+    'rtng': 'itunesadvisory',
+    'stik': 'itunesmediatype',
+    'xid ': 'itunesxid',
+    '\xa9pub': 'itunespublisher',
+}
 
 REVTAGS = dict([reversed(z) for z in TAGS.items()])
 
@@ -110,7 +124,7 @@ def getint(value):
 
 
 def setint(value):
-    if isinstance(value, (int, int, str)):
+    if isinstance(value, (int, str)):
         return [int(value)]
     temp = []
     for z in value:
@@ -154,7 +168,21 @@ FUNCS = {
     'disc': (getint, setint),
     'totaltracks': (getint, setint),
     'totaldiscs': (getint, setint),
-    'bpm': (getint, setint)}
+    'bpm': (getint, setint),
+    'itunesaccounttype': (getint, setint),
+    'itunesaccount': (gettext, settext),
+    'itunesartistid': (getint, setint),
+    'itunescomposerid': (gettext, settext),
+    'itunescatalogid': (getint, setint),
+    'itunesgenreid': (getint, setint),
+    'itunesalbumid': (getint, setint),
+    'itunesproductid': (gettext, settext),
+    'itunesstorecountry': (getint, setint),
+    'itunesadvisory': (getint, setint),
+    'itunesmediatype': (getint, setint),
+    'itunesxid': (gettext, settext),
+    'itunespublisher': (gettext, settext),
+}
 
 
 def bin_to_pic(cover):

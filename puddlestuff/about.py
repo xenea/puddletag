@@ -63,9 +63,7 @@ def versions():
         'Unidecode': get_module_version('unidecode'),
         'lxml': get_module_version('lxml'),
         'pyacoustid': get_module_version('pyacoustid'),
-        'audioread': get_module_version('audioread'),
         'Levenshtein': get_module_version('Levenshtein'),
-        'Chromaprint': get_module_version('chromaprint'),
     }
 
 
@@ -93,18 +91,19 @@ class AboutPuddletag(QDialog):
         QDialog.__init__(self, parent)
         self.setWindowTitle(translate("About", 'About puddletag'))
         icon = QLabel()
-        icon.setPixmap(QPixmap(':/appicon.svg').scaled(48, 48))
+        icon.setPixmap(QPixmap('icons:appicon.svg').scaled(48, 48))
         lib_versions = '<br />'.join(
             ['%s: %s' % (lib, version) for (lib, version) in versions().items()]
         )
 
         if changeset:
-            version = translate("About", '<h2>puddletag %1</h2>Changeset %2')
-            version = version.arg(version_string)
-            version = version.arg(changeset)
+            version = translate('About',
+                                "<h2>puddletag {}</h2>Changeset {}"
+                                ).format(version_string, changeset)
         else:
-            version = translate("About", '<h2>puddletag %1</h2>')
-            version = version.arg(version_string)
+            version = translate('About',
+                                "<h2>puddletag {}</h2>"
+                                ).format(version_string)
         label = QLabel(version)
 
         tab = QTabWidget()
